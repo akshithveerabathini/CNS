@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>CNS Cryptography Toolkit</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: #f2f2f2;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.box {
+    background: #eaeaea;
+    padding: 20px;
+    width: 420px;
+    margin: 20px;
+}
+
+input, select, button {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+}
+
+button {
+    background: #ccc;
+    border: none;
+}
+
+.output {
+    background: #ddd;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.valid { color: green; font-weight: bold; }
+</style>
+
+</head>
+
+<body>
+
+<!-- ================= DIFFIE HELLMAN ================= -->
+<div class="box">
+<h2>Diffie-Hellman Key Exchange</h2>
+
+<label>Prime Number (q):</label>
+<input type="number" id="q">
+
+<button onclick="generateRoots()">Find Primitive Roots</button>
+
+<label>Select Primitive Root (α):</label>
+<select id="alpha"></select>
+
+<label>Private Key (XA):</label>
+<input type="number" id="xa">
+
+<label>Private Key (XB):</label>
+<input type="number" id="xb">
+
+<h4>Constraints:</h4>
+<ul>
+<li>q must be prime</li>
+<li>Select α from generated roots</li>
+<li>1 &lt; XA, XB &lt; q</li>
+</ul>
+
+<button onclick="generateKey()">Generate Key</button>
+
+<div class="output">
+<p id="roots"></p>
+<p id="public"></p>
+<p id="shared"></p>
+<p id="verify"></p>
+</div>
+</div>
+
+<!-- ================= ROW TRANSPOSITION ================= -->
+<div class="box">
+<h2>Row Transposition Cipher</h2>
+
+<input type="text" id="rt_text" placeholder="Enter text">
+<input type="text" id="rt_key" placeholder="Enter key (e.g., 3124)">
+
+<h4>Constraints:</h4>
+<ul>
+<li>Key must be numeric</li>
+<li>Digits must be unique</li>
+<li>Text should not be empty</li>
+</ul>
+
+<button onclick="rtEncrypt()">Encrypt</button>
+<button onclick="rtDecrypt()">Decrypt</button>
+
+<div class="output">
+<p id="rt_output"></p>
+</div>
+</div>
+
+<!-- ================= VIGENERE ================= -->
+<div class="box">
+<h2>Vigenere Cipher</h2>
+
+<input type="text" id="vc_text" placeholder="Enter text">
+<input type="text" id="vc_key" placeholder="Enter key">
+
+<h4>Constraints:</h4>
+<ul>
+<li>Key must contain only alphabets</li>
+<li>Text should not be empty</li>
+</ul>
+
+<button onclick="vcEncrypt()">Encrypt</button>
+<button onclick="vcDecrypt()">Decrypt</button>
+
+<div class="output">
+<p id="vc_output"></p>
+</div>
+</div>
+
+<script>
+
+//// DIFFIE HELLMAN ////
+
+function isPrime(n){
+    if(n<=1) return false;
+    for(let i=2;i<=Math.sqrt(n);i++){
+        if(n%i===0) return false;
+    }
+    return true;
+}
+
+// Find ALL primitive roots
+function findPrimitiveRoots(q){
+    let roots=[];
+    for(let g=2;g<q;g++){
+        let set=new Set();
+        for(let i=1;i<q;i++){
+            set.add((g**i)%q);
+        }
+        if(set.size===q-1){
+            roots.push(g);
+        }
+    }
+    return roots;
+}
+
+// Generate dropdown
+function generateRoots(){
+    let q=parseInt(document.getElementById("q").value);
+
+    if(!isPrime(q)){
+        alert("Enter a valid prime number");
+        return;
+    }
+
+    let roots=findPrimitiveRoots(q);
+
+    let dropdown=document.getElementById("alpha");
+    dropdown.innerHTML="";
+
+    roots.forEach(r=>{
+        let option=document.createElement("option");
+        option.value=r;
+        option.text=r;
+        dropdown.add(option);
+    });
+
+    document.getElementById("roots").innerHTML =
+        "<b>Primitive Roots:</b> " + roots.join(", ");
+}
+
+// Generate keys
+function generateKey(){
+    let q=parseInt(document.getElementById("q").value);
+    let a=parseInt(document.getElementById("alpha").value);
+    let XA=parseInt(document.getElementById("xa").value);
+    let XB=parseInt(document.getElementById("xb").value);
+
+    if(isNaN(q)||isNaN(a)||isNaN(XA)||isNaN(XB)){
+        alert("Fill all fields");
+        return;
+    }
+
+    if(XA<=1||XB<=1||XA>=q||XB>=q){
+        alert("1 < XA, XB < q");
+        return;
+    }
+
+    let YA=(a**XA)%q;
+    let YB=(a**XB)%q;
+
+    let KA=(YB**XA)%q;
+    let KB=(YA**XB)%q;
+
+    document.getElementById("public").innerHTML =
+        "<b>Public Keys:</b><br>YA = " + YA + "<br>YB = " + YB;
+
+    document.getElementById("shared").innerHTML =
+        "<b>Shared Keys:</b><br>KA = " + KA + "<br>KB = " + KB;
+
+    document.getElementById("verify").innerHTML =
+        KA===KB ? "<span class='valid'>✔ Keys Match!</span>"
+                : "<span style='color:red'>✘ Keys Do Not Match</span>";
+}
+
+//// ROW TRANSPOSITION ////
+
+function rtEncrypt(){
+    let text=document.getElementById("rt_text").value;
+    let key=document.getElementById("rt_key").value;
+
+    if(text==""||key==""){ alert("Enter text & key"); return; }
+
+    if(!/^[0-9]+$/.test(key)){
+        alert("Key must be numeric"); return;
+    }
+
+    if(new Set(key).size!==key.length){
+        alert("Key must have unique digits"); return;
+    }
+
+    let cols=key.length;
+    let rows=Math.ceil(text.length/cols);
+
+    while(text.length<rows*cols) text+='X';
+
+    let matrix=[],index=0;
+
+    for(let r=0;r<rows;r++){
+        matrix[r]=[];
+        for(let c=0;c<cols;c++){
+            matrix[r][c]=text[index++];
+        }
+    }
+
+    let result="";
+    let sorted=key.split("").sort();
+
+    for(let i=0;i<sorted.length;i++){
+        let col=key.indexOf(sorted[i]);
+        for(let r=0;r<rows;r++){
+            result+=matrix[r][col];
+        }
+    }
+
+    document.getElementById("rt_output").innerText="Encrypted: "+result;
+}
+
+function rtDecrypt(){
+    let text=document.getElementById("rt_text").value;
+    let key=document.getElementById("rt_key").value;
+
+    if(text==""||key==""){ alert("Enter text & key"); return; }
+
+    let cols=key.length;
+    let rows=Math.ceil(text.length/cols);
+
+    let matrix=Array.from({length:rows},()=>Array(cols).fill(''));
+
+    let sorted=key.split("").sort();
+    let index=0;
+
+    for(let i=0;i<sorted.length;i++){
+        let col=key.indexOf(sorted[i]);
+        for(let r=0;r<rows;r++){
+            matrix[r][col]=text[index++];
+        }
+    }
+
+    let result="";
+    for(let r=0;r<rows;r++){
+        for(let c=0;c<cols;c++){
+            result+=matrix[r][c];
+        }
+    }
+
+    document.getElementById("rt_output").innerText =
+        "Decrypted: "+result.replace(/X+$/,'');
+}
+
+//// VIGENERE ////
+
+function vcEncrypt(){
+    let text=document.getElementById("vc_text").value.toUpperCase();
+    let key=document.getElementById("vc_key").value.toUpperCase();
+
+    if(text==""||key==""){ alert("Enter text & key"); return; }
+
+    if(!/^[A-Z]+$/.test(key)){
+        alert("Key must contain only alphabets"); return;
+    }
+
+    let result="",j=0;
+
+    for(let i=0;i<text.length;i++){
+        let c=text.charCodeAt(i);
+        if(c>=65&&c<=90){
+            let k=key.charCodeAt(j%key.length)-65;
+            result+=String.fromCharCode(((c-65+k)%26)+65);
+            j++;
+        } else result+=text[i];
+    }
+
+    document.getElementById("vc_output").innerText=result;
+}
+
+function vcDecrypt(){
+    let text=document.getElementById("vc_text").value.toUpperCase();
+    let key=document.getElementById("vc_key").value.toUpperCase();
+
+    if(text==""||key==""){ alert("Enter text & key"); return; }
+
+    let result="",j=0;
+
+    for(let i=0;i<text.length;i++){
+        let c=text.charCodeAt(i);
+        if(c>=65&&c<=90){
+            let k=key.charCodeAt(j%key.length)-65;
+            result+=String.fromCharCode(((c-65-k+26)%26)+65);
+            j++;
+        } else result+=text[i];
+    }
+
+    document.getElementById("vc_output").innerText=result;
+}
+
+</script>
+
+</body>
+</html>
